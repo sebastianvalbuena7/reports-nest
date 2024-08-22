@@ -1,5 +1,5 @@
 import type { Content, StyleDictionary, TDocumentDefinitions } from "pdfmake/interfaces"
-import { DateFormatter } from "src/helpers"
+import { CurrencyFormatter, DateFormatter } from "src/helpers"
 import { footerSection } from "./sections/footer.section"
 
 const logo: Content = {
@@ -22,7 +22,54 @@ const styles: StyleDictionary = {
     }
 }
 
-export const orderByIdReport = (): TDocumentDefinitions => {
+export interface ReportData {
+    order_id: number;
+    customer_id: number;
+    order_date: Date;
+    customers: Customers;
+    order_details: OrderDetail[];
+}
+
+export interface Customers {
+    customer_id: number;
+    customer_name: string;
+    contact_name: string;
+    address: string;
+    city: string;
+    postal_code: string;
+    country: string;
+}
+
+export interface OrderDetail {
+    order_detail_id: number;
+    order_id: number;
+    product_id: number;
+    quantity: number;
+    products: Products;
+}
+
+export interface Products {
+    product_id: number;
+    product_name: string;
+    category_id: number;
+    unit: string;
+    price: string;
+}
+
+
+interface ReportValues {
+    title?: string;
+    subTitle?: string;
+    data: ReportData;
+}
+
+export const orderByIdReport = (value: ReportValues): TDocumentDefinitions => {
+    const { data } = value;
+
+    const subTotal = data.order_details.reduce((acc, detail) => acc + (detail.quantity * +detail.products.price) , 0);
+
+    const total = subTotal + 1.30;
+
     return {
         styles: styles,
         header: logo,
@@ -41,13 +88,13 @@ export const orderByIdReport = (): TDocumentDefinitions => {
                     {
                         text: [
                             {
-                                text: `Recibo No. 12456`,
+                                text: `Recibo No. ${data.order_id}`,
                                 bold: true,
                                 style: {
                                     fontSize: 13
                                 }
                             },
-                            `\nFecha del recibo ${DateFormatter.getDDMMMMYYYY(new Date())}\nPagar antes de: ${DateFormatter.getDDMMMMYYYY(new Date())}\n`
+                            `\nFecha del recibo ${DateFormatter.getDDMMMMYYYY(data.order_date)}\nPagar antes de: ${DateFormatter.getDDMMMMYYYY(new Date())}\n`
                         ],
                         alignment: 'right'
                     }
@@ -67,9 +114,70 @@ export const orderByIdReport = (): TDocumentDefinitions => {
                         bold: true,
                         style: 'subHeader'
                     },
-                    `Razón Social: Richter Supermarkt
-                    Michael Holz 
-                    Grenzacherweg 237`
+                    `Razón Social: ${data.customers.customer_name}
+                    Contacto: ${data.customers.contact_name}`
+                ]
+            },
+            // Tabla del detalle de la orden
+            {
+                layout: 'headerLineOnly',
+                margin: [0, 30],
+                table: {
+                    headerRows: 1,
+                    widths: [50, '*', 'auto', 'auto', 'auto'],
+                    body: [
+                        ['ID', 'Descripcion', 'Cantidad', 'Precio', 'Total'],
+
+                        ...data.order_details.map(detail => [
+                            detail.order_detail_id.toString(),
+                            detail.products.product_name,
+                            detail.quantity.toString(),
+                            CurrencyFormatter.formatCurrency(+detail.products.price),
+                            {
+                                text: CurrencyFormatter.formatCurrency(+detail.products.price * detail.quantity),
+                                alignment: 'right'
+                            }
+                        ])
+                    ]
+                }
+            },
+
+            // Salto de linea
+            '\n\n',
+
+            // Totales
+            {
+                columns: [
+                    {
+                        width: '*',
+                        text: ''
+                    },
+                    {
+                        width: 'auto',
+                        layout: 'noBorders',
+                        table: {
+                            body: [
+                                [
+                                    'Subtotal',
+                                    {
+                                        text: CurrencyFormatter.formatCurrency(subTotal),
+                                        alignment: 'right'
+                                    }
+                                ],
+                                [
+                                    {
+                                        text: 'Total',
+                                        bold: true
+                                    },
+                                    {
+                                        text: CurrencyFormatter.formatCurrency(total),
+                                        alignment: 'right',
+                                        bold: true
+                                    }
+                                ]
+                            ]
+                        }
+                    }
                 ]
             }
         ]
